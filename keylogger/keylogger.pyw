@@ -1,9 +1,9 @@
 from pynput import keyboard as kb
 from pynput.keyboard import Key
-from datetime import datetime
 import keyboard
 import ctypes
 import os
+from datetime import datetime
 special_keys = {
     Key.alt_l: " [Alt_L] ",
     Key.alt_r: " [Alt_R] ",
