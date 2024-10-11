@@ -1,7 +1,7 @@
 # KY8 Project
 
 ## Introduction
-KY8 is a large-scale keylogger project aimed at testing students' gaming activities during computer science class. The keylogger is designed to monitor and analyze keyboard input to determine if students are engaging in gaming during class time.
+KY8 is a large-scale keylogger project aimed at testing students' gaming activities during computer science class. The keylogger is designed to monitor students to determine if they are engaging in gaming during class time.
 
 ## Features
 - Monitors keyboard activity in real-time.
