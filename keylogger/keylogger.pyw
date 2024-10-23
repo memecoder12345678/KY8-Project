@@ -79,7 +79,7 @@ def copy_clipboard_data():
 def write_date_to_file():
     path = os.path.join(os.getenv("USERPROFILE"), "result.log")
     with open(path, "a", encoding='utf-8') as file:
-        current_date = datetime.now().strftime("%Y-%m-%d %H:%M")
+        current_date = datetime.now().strftime("%m-%d-%Y %H:%M")
         file.write("\n" + ("=" * 50) + "\n[Date]: " + current_date + "\n" + ("=" * 50) + "\n")
 write_date_to_file()
 keyboard.add_hotkey('ctrl+v', copy_clipboard_data, suppress=False)
