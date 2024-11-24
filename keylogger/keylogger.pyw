@@ -1,5 +1,4 @@
 import os
-import zlib
 import unicodedata
 import subprocess
 import ctypes
