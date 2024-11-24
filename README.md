@@ -15,8 +15,9 @@
 ## Purpose
 The main goal of the **KY8-Project** is to evaluate how often students play games during computer science lessons and to gather data for research purposes. This data will help improve classroom management strategies and ensure students focus on their studies.
 
-## Disclaimer
-This project is for educational and research purposes only. Please ensure that it complies with all applicable laws and regulations before using it in any real-world scenario.
+> [!WARNING]
+> ## Disclaimer
+> This project is for educational and research purposes only. Please ensure that it complies with all applicable laws and regulations before using it in any real-world scenario.
 
 ## License
 KY8 is licensed under the MIT License. See the [LICENSE](LICENSE.md) file for more details.
